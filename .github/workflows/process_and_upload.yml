@@ -1,0 +1,88 @@
+name: Process and Upload Novels
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "42 4 * * 0"
+
+jobs:
+  process-and-upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed to push submodule updates
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Initialize Sparse Submodule
+        run: |
+          BRANCH=$(git config -f .gitmodules submodule.regenykorpusz.branch || echo "main")
+          git submodule update --init --no-checkout regenykorpusz
+          cd regenykorpusz
+          git sparse-checkout init --cone
+          git sparse-checkout set level1 level1_metadata.tsv
+          # Read branch from .gitmodules and ensure it's checked out
+          git fetch origin $BRANCH
+          git checkout $BRANCH
+          cd ..
+
+      - name: Update submodule
+        id: update
+        run: |
+          echo "Checking for submodule updates..."
+          git submodule update --remote regenykorpusz
+
+          # Check if there are changes to the submodule reference
+          if ! git diff --quiet regenykorpusz; then
+            echo "Changes found in submodule."
+            echo "changed=true" >> $GITHUB_OUTPUT
+          elif ! git diff --quiet .gitmodules; then
+            echo "Changes found in .gitmodules."
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No actionable changes found."
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deciding if processing should run
+        id: decision
+        run: |
+          RUN_PROCESS="true"
+          if [[ "${{ github.event_name }}" == "schedule" ]] && [[ "${{ steps.update.outputs.changed }}" != "true" ]]; then
+            echo "Scheduled run, but no changes. Skipping."
+            RUN_PROCESS="false"
+          fi
+          echo "run=$RUN_PROCESS" >> $GITHUB_OUTPUT
+
+      - name: Set up Python
+        if: steps.decision.outputs.run == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        if: steps.decision.outputs.run == 'true'
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run processing script
+        if: steps.decision.outputs.run == 'true'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          WRITE_LOCAL: "0"
+        run: |
+          python process.py
+
+      - name: Commit and push submodule update
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add regenykorpusz
+          git commit -m "Auto-update regenykorpusz submodule"
+          git push

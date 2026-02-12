@@ -1,0 +1,4 @@
+[submodule "regenykorpusz"]
+	url = https://github.com/ELTE-DH/regenykorpusz
+	branch = main
+	path = regenykorpusz
