@@ -75,6 +75,8 @@ if __name__ == "__main__":
 
     # Authenticate only if we are uploading to the Hub
     if not LOCAL_ONLY:
+        if not HF_TOKEN:
+            raise ValueError("HF_TOKEN environment variable is not set. Please set the HF_TOKEN secret in your repository settings.")
         login(token=HF_TOKEN)
 
     # Create and Split Dataset
@@ -99,8 +101,6 @@ if __name__ == "__main__":
             print(f"Saved {split} split to {output_path}")
     else:
         print(f"Step 2/2: Streaming upload to Hub: {HF_REPO_ID}...")
-        ds_dict.push_to_hub(
-            HF_REPO_ID, max_shard_size="100MB", private=False, license="cc-by-nc-nd-4.0"
-        )
+        ds_dict.push_to_hub(HF_REPO_ID, max_shard_size="50MB", private=False)
 
     print("Process complete!")
