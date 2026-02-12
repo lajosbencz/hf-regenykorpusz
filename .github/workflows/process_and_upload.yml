@@ -22,11 +22,10 @@ jobs:
       - name: Initialize Sparse Submodule
         run: |
           BRANCH=$(git config -f .gitmodules submodule.regenykorpusz.branch || echo "main")
-          git submodule update --init --no-checkout regenykorpusz
+          git submodule update --init regenykorpusz
           cd regenykorpusz
           git sparse-checkout init --cone
           git sparse-checkout set level1 level1_metadata.tsv
-          # Read branch from .gitmodules and ensure it's checked out
           git fetch origin $BRANCH
           git checkout $BRANCH
           cd ..
