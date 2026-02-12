@@ -106,8 +106,7 @@ if __name__ == "__main__":
         ds.push_to_hub(
             HF_REPO_ID, 
             max_shard_size=SHARD_SIZE, 
-            private=False,
-            safe_serialization=True
+            private=False
         )
 
     print("Process complete!")
