@@ -14,8 +14,6 @@ LEVEL1_DIR = os.path.join(SOURCE_DIR, "level1")
 METADATA_PATH = os.path.join(SOURCE_DIR, "level1_metadata.tsv")
 HF_TOKEN = os.getenv("HF_TOKEN")
 HF_REPO_ID = os.getenv("HF_REPO_ID", "lazos/literature-hu-test")
-HF_SPLIT_TEST_SIZE = float(os.getenv("HF_SPLIT_TEST_SIZE", "0.05"))
-HF_SPLIT_SEED = int(os.getenv("HF_SPLIT_SEED", "42"))
 LOCAL_OUTPUT_DIR = os.getenv("LOCAL_OUTPUT_DIR", "./parquet")
 
 df_meta = pd.read_csv(METADATA_PATH, sep="\t")
@@ -77,34 +75,28 @@ def paragraph_generator(level1_path, meta_dict):
 
 if __name__ == "__main__":
 
-    # Authenticate only if we are uploading to the Hub
     if not LOCAL_ONLY:
         if not HF_TOKEN:
             raise ValueError("HF_TOKEN environment variable is not set. Please set the HF_TOKEN secret in your repository settings.")
         login(token=HF_TOKEN)
 
-    # Create and Split Dataset
-    print("Step 1/2: Initializing generator and splitting data...")
-    # This pull records by yielding them from the generator
+    print("Step 1/2: Initializing generator...")
     ds = Dataset.from_generator(
         paragraph_generator,
         gen_kwargs={"level1_path": LEVEL1_DIR, "meta_dict": meta_map},
         features=features,
     )
+    
+    ds = ds.sort(["author", "title", "paragraph_index"]).flatten_indices()
 
-    ds_dict = ds.train_test_split(test_size=HF_SPLIT_TEST_SIZE, seed=HF_SPLIT_SEED)
-
-    # Execution: Local Save or Hub Push
     if LOCAL_ONLY:
         print(f"Step 2/2: Writing to local Parquet files in {LOCAL_OUTPUT_DIR}...")
         os.makedirs(LOCAL_OUTPUT_DIR, exist_ok=True)
-        # Directly save to parquet to save space/time
-        for split, dataset in ds_dict.items():
-            output_path = os.path.join(LOCAL_OUTPUT_DIR, f"{split}.parquet")
-            dataset.to_parquet(output_path)
-            print(f"Saved {split} split to {output_path}")
+        output_path = os.path.join(LOCAL_OUTPUT_DIR, "train.parquet")
+        ds.to_parquet(output_path)
+        print(f"Saved dataset to {output_path}")
     else:
         print(f"Step 2/2: Streaming upload to Hub: {HF_REPO_ID}...")
-        ds_dict.push_to_hub(HF_REPO_ID, max_shard_size="50MB", private=False)
+        ds.push_to_hub(HF_REPO_ID, max_shard_size="100MB", private=False)
 
     print("Process complete!")
