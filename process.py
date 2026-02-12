@@ -15,6 +15,7 @@ LEVEL1_DIR = os.path.join(SOURCE_DIR, "level1")
 METADATA_PATH = os.path.join(SOURCE_DIR, "level1_metadata.tsv")
 HF_TOKEN = os.getenv("HF_TOKEN")
 HF_REPO_ID = os.getenv("HF_REPO_ID", "lazos/literature-hu-test")
+SHARD_SIZE = os.getenv("SHARD_SIZE", "10MB")
 LOCAL_OUTPUT_DIR = os.getenv("LOCAL_OUTPUT_DIR", "./parquet")
 
 df_meta = pd.read_csv(METADATA_PATH, sep="\t")
@@ -75,11 +76,11 @@ def paragraph_generator(level1_path, meta_dict):
 
 
 if __name__ == "__main__":
-
     disable_progress_bar()
+    
     if not LOCAL_ONLY:
         if not HF_TOKEN:
-            raise ValueError("HF_TOKEN environment variable is not set. Please set the HF_TOKEN secret in your repository settings.")
+            raise ValueError("HF_TOKEN must be set.")
         login(token=HF_TOKEN)
 
     print("Step 1/2: Initializing generator...")
@@ -89,16 +90,24 @@ if __name__ == "__main__":
         features=features,
     )
     
-    ds = ds.sort(["author", "title", "paragraph_index"]).flatten_indices()
+    print("Step 1.5: Sorting and flattening (this ensures sequential streaming)...")
+    ds = ds.sort(["author", "title", "paragraph_index"], keep_in_memory=False).flatten_indices()
 
     if LOCAL_ONLY:
-        print(f"Step 2/2: Writing to local Parquet files in {LOCAL_OUTPUT_DIR}...")
+        print(f"Step 2/2: Writing to local Parquet files with {SHARD_SIZE} shards...")
         os.makedirs(LOCAL_OUTPUT_DIR, exist_ok=True)
-        output_path = os.path.join(LOCAL_OUTPUT_DIR, "train.parquet")
-        ds.to_parquet(output_path)
-        print(f"Saved dataset to {output_path}")
+        ds.save_to_disk(
+            LOCAL_OUTPUT_DIR, 
+            max_shard_size=SHARD_SIZE,
+            num_proc=2
+        )
     else:
-        print(f"Step 2/2: Streaming upload to Hub: {HF_REPO_ID}...")
-        ds.push_to_hub(HF_REPO_ID, max_shard_size="200MB", private=False)
+        print(f"Step 2/2: Uploading to Hub with {SHARD_SIZE} shards...")
+        ds.push_to_hub(
+            HF_REPO_ID, 
+            max_shard_size=SHARD_SIZE, 
+            private=False,
+            safe_serialization=True
+        )
 
     print("Process complete!")
