@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from lxml import etree
 from datasets import Dataset, Features, Value
+from datasets.utils.logging import disable_progress_bar
 from huggingface_hub import login
 
 # Set the environment variable WRITE_LOCAL=0 to upload to Hugging Face.
@@ -75,6 +76,7 @@ def paragraph_generator(level1_path, meta_dict):
 
 if __name__ == "__main__":
 
+    disable_progress_bar()
     if not LOCAL_ONLY:
         if not HF_TOKEN:
             raise ValueError("HF_TOKEN environment variable is not set. Please set the HF_TOKEN secret in your repository settings.")
@@ -97,6 +99,6 @@ if __name__ == "__main__":
         print(f"Saved dataset to {output_path}")
     else:
         print(f"Step 2/2: Streaming upload to Hub: {HF_REPO_ID}...")
-        ds.push_to_hub(HF_REPO_ID, max_shard_size="100MB", private=False)
+        ds.push_to_hub(HF_REPO_ID, max_shard_size="200MB", private=False)
 
     print("Process complete!")
