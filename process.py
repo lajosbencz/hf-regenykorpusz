@@ -26,6 +26,7 @@ meta_map = df_meta.set_index("novel_id").to_dict("index")
 features = Features(
     {
         "text": Value("string"),
+        "paragraph_index": Value("int32"),
         "author": Value("string"),
         "title": Value("string"),
         "first_edition": Value("string"),
@@ -50,12 +51,15 @@ def paragraph_generator(level1_path, meta_dict):
 
         # Use iterparse for event-driven parsing to prevent memory buildup
         context = etree.iterparse(file_path, events=("end",), tag="{*}p")
+        paragraph_index = -1
 
         for _, elem in context:
             text = "".join(elem.itertext()).strip()
             if text:
+                paragraph_index += 1
                 yield {
                     "text": text,
+                    "paragraph_index": paragraph_index,
                     "author": str(novel_meta.get("author_name", "Unknown")),
                     "title": str(novel_meta.get("title", "Unknown")),
                     "first_edition": str(novel_meta.get("first_edition", "Unknown")),
