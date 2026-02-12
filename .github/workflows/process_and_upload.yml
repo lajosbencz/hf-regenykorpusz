@@ -24,8 +24,7 @@ jobs:
           BRANCH=$(git config -f .gitmodules submodule.regenykorpusz.branch || echo "main")
           git submodule update --init regenykorpusz
           cd regenykorpusz
-          git sparse-checkout init
-          git sparse-checkout set level1 level1_metadata.tsv
+          git sparse-checkout set --no-cone level1 level1_metadata.tsv
           git fetch origin $BRANCH
           git checkout $BRANCH
           cd ..
